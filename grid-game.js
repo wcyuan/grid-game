@@ -24,9 +24,9 @@ gridgame.add_event_listener = function(el, type, fn) {
     } 
 };
 
-gridgame.range = function(max) {
+gridgame.range = function(min, max) {
     var retval = [];
-    for (var ii = 0; ii < max; ii++) {
+    for (var ii = min; ii < max; ii++) {
         retval.push(ii);
     }
     return retval;
@@ -47,10 +47,11 @@ gridgame.array_equals = function(arr1, arr2) {
 gridgame.Board = {
     create: function(rows, cols, func_valid_idx, func_possible_values) {
         var self = Object.create(this);
+        self.valid = true;
         self.rows = rows;
         self.cols = cols;
         if (!func_possible_values) {
-            func_possible_values = function(idx) { return gridgame.range(rows); };
+            func_possible_values = function(idx) { return gridgame.range(1, rows + 1); };
         }
         self.func_possible_values = func_possible_values;
         self.possible_values = [];
@@ -90,10 +91,46 @@ gridgame.Board = {
             if (this.possible_values[idx].includes(values[ii])) {
                 this.possible_values[idx] = this.possible_values[idx].filter(
                     function (val) { return !values.includes(val); });
+                if (this.possible_values[idx].length == 0) {
+                    this.valid = false;
+                }
                 return true;
             }
         }
         return false;
+    },
+    compute_valid: function() {
+        for (var ii = 0; ii < this.possible_values.length; ii++) {
+            if (this.possible_values[ii].length == 0) {
+                return false;
+            }
+        }
+        return true;
+    },
+    is_solved: function() {
+        for (var ii = 0; ii < this.possible_values.length; ii++) {
+            if (this.possible_values[ii].length != 1) {
+                return false;
+            }
+        }
+        return true;
+    },
+    as_string: function(empty_val) {
+        if (!empty_val) {
+            empty_val = "-";
+        }
+        var chars = [];
+        for (var row = 0; row < this.rows; row++) {
+            for (var col = 0; col < this.cols; col++) {
+                if (this.possible_values[this.row_col_to_idx(row, col)].length == 1) {
+                    chars.push(this.possible_values[this.row_col_to_idx(row, col)][0]);
+                } else {
+                    chars.push(empty_val);
+                }
+            }
+            chars.push("\n");
+        }
+        return chars.join("");
     },
 };
 
@@ -171,6 +208,8 @@ gridgame.Game = {
             this.solve_step();
         }
         return this;
+    },
+    solve_with_guessing: function() {
     },
 };
 
