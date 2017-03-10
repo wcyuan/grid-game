@@ -87,9 +87,9 @@ gridgame.Board = {
     },
     remove_possible_values: function(idx, values) {
         for (var ii = 0; ii < values.length; ii++) {
-            if (this.possible_values[idx].includes(value)) {
+            if (this.possible_values[idx].includes(values[ii])) {
                 this.possible_values[idx] = this.possible_values[idx].filter(
-                    function (idx, val) { return !(values.includes(val); });
+                    function (val) { return !values.includes(val); });
                 return true;
             }
         }
@@ -105,6 +105,9 @@ gridgame.Update = {
         self.value = value;
         return self;
     },
+    equals: function(update) {
+        return (update.idx == this.idx && update.action == this.action && update.value == this.value);
+    },
 };
 
 gridgame.Constraint = {
@@ -118,6 +121,7 @@ gridgame.Game = {
         var self = Object.create(this);
         self.board = gridgame.Board.create(rows, cols, func_valid_idx);
         self.constraints = constraints;
+        self.updates = [];
         return self;
     },
     apply_update: function(update) {
@@ -126,16 +130,40 @@ gridgame.Game = {
         } else if (update.action == "remove") {
             return this.board.remove_possible_values(update.idx, [update.value]);
         }
-    }
+    },
+    add_updates: function(arr1, arr2) {
+        for (var ii = 0; ii < arr2.length; ii++) {
+            var matches = arr1.filter(function (val) {
+                return val.equals(arr2[ii]);
+            });
+            if (matches.length == 0) {
+                arr1.push(arr2[ii]);
+            }
+        }
+    },
     get_implied_updates: function(update) {
         var updates = [];
         for (var ii = 0; ii < this.constraints.length; ii++) {
-            var this_updates = this.constraints[ii].propagate(this.board, update);
-            for (var jj = 0; jj < this_updates; jj++) {
-                updates.push(this_updates[jj]);
-            }
+            this.add_updates(updates, this.constraints[ii].propagate(this.board, update));
         }
         return updates;
+    },
+    solve_step: function() {
+        var had_changes = []
+        for (var ii = 0; ii < this.updates.length; ii++) {
+            if (this.apply_update(this.updates[ii])) {
+                had_changes.push(this.updates[ii]);
+            }
+        }
+        this.updates = [];
+        for (var ii = 0; ii < had_changes.length; ii++) {
+            this.add_updates(this.updates, this.get_implied_updates(had_changes[ii]));
+        }
+    },
+    solve_with_implications: function() {
+        while (self.updates.length > 0) {
+            self.solve_step();
+        }
     },
 };
 
@@ -150,7 +178,7 @@ gridgame.OneEachConstraint = gridgame.Constraint.extend({
     },
     propagate: function(board, update) {
         var updates = [];
-        if (!this.idxs.include(update.idx)) {
+        if (!this.idxs.includes(update.idx)) {
             return updates;
         }
         // 1. if any spot has only one value, then remove
@@ -161,7 +189,7 @@ gridgame.OneEachConstraint = gridgame.Constraint.extend({
                 if (this.idxs[ii] == update.idx) {
                     continue;
                 }
-                updates.push(gamegrid.update.create(this.idxs[ii], "remove", value));
+                updates.push(gridgame.Update.create(this.idxs[ii], "remove", value));
             } 
         }
         // 2. if there is only one possible place for a value to go
@@ -173,10 +201,53 @@ gridgame.OneEachConstraint = gridgame.Constraint.extend({
                     spots.push(this.idxs[ii]);
                 }
             }
-            if (spots.length == 1) {
-                updates.push(gamegrid.update.create(spots[0], "set", value));
+            if (spots.length == 1 && board.possible_values[spots[0]].length > 1) {
+                updates.push(gridgame.Update.create(spots[0], "set", value));
             }
         }
         return updates;
     },
 });
+
+gridgame.SudokuGame = gridgame.Game.extend({
+    create: function(rows, cols) {
+        var self = Object.create(this);
+        if (!rows) { rows = 9; }
+        if (!cols) { cols = 9; }
+        self.board = gridgame.Board.create(rows, cols);
+        self.constraints = [];
+        // each row
+        for (var row = 0; row < rows; row++) {
+            var idxs = [];
+            for (var col = 0; col < cols; col++) {
+                idxs.push(self.board.row_col_to_idx(row, col));
+            }
+            self.constraints.push(gridgame.OneEachConstraint.create(idxs));
+        }
+        // each col
+        for (var col = 0; col < cols; col++) {
+            var idxs = [];
+            for (var row = 0; row < rows; row++) {
+                idxs.push(self.board.row_col_to_idx(row, col));
+            }
+            self.constraints.push(gridgame.OneEachConstraint.create(idxs));
+        }
+        // squares
+        var sqrt = Math.sqrt(rows);
+        for (var row = 0; row < rows; row += sqrt) {
+            // this only works if rows == cols
+            for (var col = 0; col < cols; col += sqrt) {
+                var idxs = [];
+                for (var ii = 0; ii < sqrt; ii++) {
+                    for (var jj = 0; jj < sqrt; jj++) {
+                        idxs.push(self.board.row_col_to_idx(row + ii, col + jj));
+                    }
+                }
+                self.constraints.push(gridgame.OneEachConstraint.create(idxs));
+            }
+        }
+        self.updates = [];
+        return self;
+    },
+});
+
