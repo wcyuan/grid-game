@@ -124,6 +124,11 @@ gridgame.Game = {
         self.updates = [];
         return self;
     },
+    set_value: function(row, col, value) {
+        this.updates.push(
+            gridgame.Update.create(
+                this.board.row_col_to_idx(row, col), "set", value));
+    },
     apply_update: function(update) {
         if (update.action == "set") {
             return this.board.set_possible_value(update.idx, update.value);
@@ -159,11 +164,13 @@ gridgame.Game = {
         for (var ii = 0; ii < had_changes.length; ii++) {
             this.add_updates(this.updates, this.get_implied_updates(had_changes[ii]));
         }
+        return this;
     },
     solve_with_implications: function() {
-        while (self.updates.length > 0) {
-            self.solve_step();
+        while (this.updates.length > 0) {
+            this.solve_step();
         }
+        return this;
     },
 };
 
@@ -248,6 +255,16 @@ gridgame.SudokuGame = gridgame.Game.extend({
         }
         self.updates = [];
         return self;
+    },
+    init_with_string: function(string) {
+        for (var ii = 0; ii < string.length; ii++) {
+            var value = Math.round(string.charAt(ii));
+            if (!isNaN(value)) {
+                var row_col = this.board.idx_to_row_col(ii);
+                this.set_value(row_col[0], row_col[1], value);
+            }
+        }
+        return this;
     },
 });
 
