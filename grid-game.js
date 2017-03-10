@@ -226,7 +226,7 @@ gridgame.Game = {
         }
         return updates;
     },
-    solve_step: function(board, updates) {
+    propagate_once: function(board, updates) {
         if (!board) {
             board = this.board;
         }
@@ -248,6 +248,18 @@ gridgame.Game = {
         }
         return updates;
     },
+    generate_updates: function() {
+        var updates = [];
+        // If there are no pending updates, loop through all constraints and
+        // see if there are any recommended updates that were missed before
+        //
+        // this should only find updates if some slots were manually filled
+        // without propagating the updates afterwards.
+        for (var ii = 0; ii < this.constraints.length; ii++) {
+            this.add_updates(updates, this.constraints[ii].propagate(board));
+        }
+        return updates;
+    },
     solve_with_implications: function(generate_updates, board, updates) {
         if (!board) {
             board = this.board;
@@ -256,17 +268,10 @@ gridgame.Game = {
             updates = this.updates;
         }
         if (updates.length == 0 && generate_updates) {
-            // If there are no pending updates, loop through all constraints and
-            // see if there are any recommended updates that were missed before
-            //
-            // this should only find updates if some slots were manually filled
-            // without propagating the updates afterwards.
-            for (var ii = 0; ii < this.constraints.length; ii++) {
-                this.add_updates(updates, this.constraints[ii].propagate(board));
-            }
+            updates = this.generate_updates();
         }
         while (updates.length > 0) {
-            updates = this.solve_step(board, updates);
+            updates = this.propagate_once(board, updates);
         }
         return board;
     },
