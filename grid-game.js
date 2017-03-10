@@ -161,16 +161,22 @@ gridgame.Game = {
         self.updates = [];
         return self;
     },
-    set_value: function(row, col, value) {
+    set_value: function(row, col, value, board) {
+        if (!board) {
+            board = this.board;
+        }
         this.updates.push(
             gridgame.Update.create(
-                this.board.row_col_to_idx(row, col), "set", value));
+                board.row_col_to_idx(row, col), "set", value));
     },
-    apply_update: function(update) {
+    apply_update: function(update, board) {
+        if (!board) {
+            board = this.board;
+        }
         if (update.action == "set") {
-            return this.board.set_possible_value(update.idx, update.value);
+            return board.set_possible_value(update.idx, update.value);
         } else if (update.action == "remove") {
-            return this.board.remove_possible_values(update.idx, [update.value]);
+            return board.remove_possible_values(update.idx, [update.value]);
         }
     },
     add_updates: function(arr1, arr2) {
@@ -183,31 +189,46 @@ gridgame.Game = {
             }
         }
     },
-    get_implied_updates: function(update) {
+    get_implied_updates: function(update, board) {
+        if (!board) {
+            board = this.board;
+        }
         var updates = [];
         for (var ii = 0; ii < this.constraints.length; ii++) {
-            this.add_updates(updates, this.constraints[ii].propagate(this.board, update));
+            this.add_updates(updates, this.constraints[ii].propagate(board, update));
         }
         return updates;
     },
-    solve_step: function() {
+    solve_step: function(board, updates) {
+        if (!board) {
+            board = this.board;
+        }
+        if (!updates) {
+            updates = this.updates;
+        }
         var had_changes = []
-        for (var ii = 0; ii < this.updates.length; ii++) {
-            if (this.apply_update(this.updates[ii])) {
-                had_changes.push(this.updates[ii]);
+        for (var ii = 0; ii < updates.length; ii++) {
+            if (this.apply_update(updates[ii], board)) {
+                had_changes.push(updates[ii]);
             }
         }
-        this.updates = [];
+        updates = [];
         for (var ii = 0; ii < had_changes.length; ii++) {
-            this.add_updates(this.updates, this.get_implied_updates(had_changes[ii]));
+            this.add_updates(updates, this.get_implied_updates(had_changes[ii], board));
         }
-        return this;
+        return updates;
     },
-    solve_with_implications: function() {
-        while (this.updates.length > 0) {
-            this.solve_step();
+    solve_with_implications: function(board, updates) {
+        if (!board) {
+            board = this.board;
         }
-        return this;
+        if (!updates) {
+            updates = this.updates;
+        }
+        while (updates.length > 0) {
+            updates = this.solve_step(board, updates);
+        }
+        return board;
     },
     solve_with_guessing: function() {
     },
