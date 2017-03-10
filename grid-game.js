@@ -1,3 +1,19 @@
+//
+// This works, but isn't very user friendly yet
+// As an example, try this:
+//
+// g = gridgame.SudokuGame.create().init_with_string("...........4..5....63..1.7..15..32.8..9.........6..4...4.....9.3.7.4...25..9..7..")
+// g.solve_with_implications()
+// g.board.as_string()
+//
+// That will show solutions that you can achieve with simple rules
+//
+// s = g.solve_with_guessing(null, 1)
+// s[0].as_string()
+//
+// This will show solutions from trial and error (which should always work)
+//
+
 Object.prototype.extend = function (extension) {
     var hasOwnProperty = Object.hasOwnProperty;
     var object = Object.create(this);
@@ -283,7 +299,7 @@ gridgame.Game = {
         if (!board) {
             board = this.board;
         }
-        console.log(board.as_string());
+        //console.log(board.as_string());
         if (!board.valid) {
             return []; 
         }
