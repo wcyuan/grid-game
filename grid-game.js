@@ -132,6 +132,18 @@ gridgame.Board = {
         }
         return chars.join("");
     },
+    copy: function() {
+        var self = this;
+        var board = gridgame.Board.create(self.rows, self.cols, self.func_valid_idx, self.func_possible_values);
+        for (var ii = 0; ii < self.possible_values.length; ii++) {
+            board.possible_values[idx] = [];
+            for (var jj = 0; jj < self.possible_values[idx].length; jj++) {
+                board.possible_values[idx].push(self.possible_values[idx][jj]);
+            }
+        }
+        board.valid = self.valid;
+        return board;
+    },
 };
 
 gridgame.Update = {
@@ -150,6 +162,21 @@ gridgame.Update = {
 gridgame.Constraint = {
     create: function(args) { return Object.create(this); },
     check: function(board, update) { return true; },
+    // Propagate takes an update, and the board after that update
+    // has been applied, and figures out whether because of that
+    // that update there are other changes we need to make to the
+    // board based on this constraint.  It returns a list of updates.
+    // If the given update is not provided, then just try to find
+    // updates based on the state of the board.
+    //
+    // propagate holds essentially all of the logic of the Constraint
+    // For an example of its use, suppose the update is to set the
+    // first slot to X and there are constraints that say that each
+    // number can only appear in each row and column once.  In that
+    // case, there will be a constraint for each row and a constraint
+    // for each column.  When you call propagate on the row constraint
+    // for the first row, it should suggest updates to remove X from
+    // each of the other slots in that row.
     propagate: function(board, update) { return []; },
 };
 
@@ -209,6 +236,9 @@ gridgame.Game = {
         var had_changes = []
         for (var ii = 0; ii < updates.length; ii++) {
             if (this.apply_update(updates[ii], board)) {
+                if (!board.valid) {
+                   return [];
+                }
                 had_changes.push(updates[ii]);
             }
         }
@@ -218,19 +248,45 @@ gridgame.Game = {
         }
         return updates;
     },
-    solve_with_implications: function(board, updates) {
+    solve_with_implications: function(generate_updates, board, updates) {
         if (!board) {
             board = this.board;
         }
         if (!updates) {
             updates = this.updates;
         }
+        if (updates.length == 0 && generate_updates) {
+            // If there are no pending updates, loop through all constraints and
+            // see if there are any recommended updates that were missed before
+            //
+            // this should only find updates if some slots were manually filled
+            // without propagating the updates afterwards.
+            for (var ii = 0; ii < this.constraints.length; ii++) {
+                this.add_updates(updates, this.constraints[ii].propagate(board));
+            }
+        }
         while (updates.length > 0) {
             updates = this.solve_step(board, updates);
         }
         return board;
     },
-    solve_with_guessing: function() {
+    solve_with_guessing: function(board) {
+        if (!board) {
+            board = this.board;
+        }
+        while(true) {
+            if (!board.valid) {
+                return false;
+            }
+            if (board.is_solved()) {
+                return true;
+            }
+            var temp_board = board.copy();
+            for (var ii = 0; ii < temp_board.possible_values.length; ii++) {
+                
+            }
+        }
+        
     },
 };
 
@@ -240,24 +296,31 @@ gridgame.OneEachConstraint = gridgame.Constraint.extend({
         self.idxs = idxs;
         return self;
     },
-    check: function(board, update) {
-        return true;
-    },
     propagate: function(board, update) {
         var updates = [];
-        if (!this.idxs.includes(update.idx)) {
-            return updates;
+        var idxs_to_check;
+        if (update) {
+            if (!this.idxs.includes(update.idx)) {
+                return updates;
+            }
+            idxs_to_check = [update.idx];
+        } else {
+            idxs_to_check = this.idxs;
         }
         // 1. if any spot has only one value, then remove
         // that value from all the other spots
-        if (board.possible_values[update.idx].length == 1) {
-            var value = board.possible_values[update.idx][0];
-            for (var ii = 0; ii < this.idxs.length; ii++) {
-                if (this.idxs[ii] == update.idx) {
-                    continue;
+        for (var ii = 0; ii < idxs_to_check.length; ii++) {
+            if (board.possible_values[idxs_to_check[ii]].length == 1) {
+                var value = board.possible_values[idxs_to_check[ii]][0];
+                for (var jj = 0; jj < this.idxs.length; jj++) {
+                    if (this.idxs[jj] == idxs_to_check[ii]) {
+                        continue;
+                    }
+                    if (board.possible_values[this.idxs[jj]].includes(value)) {
+                        updates.push(gridgame.Update.create(this.idxs[jj], "remove", value));
+                    }
                 }
-                updates.push(gridgame.Update.create(this.idxs[ii], "remove", value));
-            } 
+            }
         }
         // 2. if there is only one possible place for a value to go
         // that's where it must go.
