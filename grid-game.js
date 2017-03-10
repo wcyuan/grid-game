@@ -286,9 +286,14 @@ gridgame.Game = {
             if (board.is_solved()) {
                 return true;
             }
-            var temp_board = board.copy();
-            for (var ii = 0; ii < temp_board.possible_values.length; ii++) {
-                
+            for (var ii = 0; ii < board.possible_values.length; ii++) {
+                if (board.possible_values[ii] <= 1) {
+                    continue;
+                }
+                var temp_board = board.copy();
+                // XXX fix this
+                this.set_value(row, col, value, temp_board);
+                this.solve_with_implications(temp_board);
             }
         }
         
@@ -346,11 +351,9 @@ gridgame.OneEachConstraint = gridgame.Constraint.extend({
 
 gridgame.SudokuGame = gridgame.Game.extend({
     create: function(rows, cols) {
-        var self = Object.create(this);
         if (!rows) { rows = 9; }
         if (!cols) { cols = 9; }
-        self.board = gridgame.Board.create(rows, cols);
-        self.constraints = [];
+        var self = gridgame.Game.create.call(this, rows, cols, []);
         // each row
         for (var row = 0; row < rows; row++) {
             var idxs = [];
