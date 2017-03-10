@@ -103,11 +103,12 @@ gridgame.Update = {
         self.idx = idx;
         self.action = action;
         self.value = value;
+        return self;
     },
 };
 
 gridgame.Constraint = {
-    create: function(args) { var self = Object.create(this); },
+    create: function(args) { return Object.create(this); },
     check: function(board, update) { return true; },
     propagate: function(board, update) { return true; },
 };
@@ -117,11 +118,24 @@ gridgame.Game = {
         var self = Object.create(this);
         self.board = gridgame.Board.create(rows, cols, func_valid_idx);
         self.constraints = constraints;
+        return self;
     },
     apply_update: function(update) {
+        if (update.action == "set") {
+            return this.board.set_possible_value(update.idx, update.value);
+        } else if (update.action == "remove") {
+            return this.board.remove_possible_values(update.idx, [update.value]);
+        }
     }
-    get_implied_updates: function() {
+    get_implied_updates: function(update) {
+        var updates = [];
+        for (var ii = 0; ii < this.constraints.length; ii++) {
+            var this_updates = this.constraints[ii].propagate(this.board, update);
+            for (var jj = 0; jj < this_updates; jj++) {
+                updates.push(this_updates[jj]);
+            }
+        }
+        return updates;
     },
-    
 };
 
