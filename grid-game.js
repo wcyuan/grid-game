@@ -110,7 +110,7 @@ gridgame.Update = {
 gridgame.Constraint = {
     create: function(args) { return Object.create(this); },
     check: function(board, update) { return true; },
-    propagate: function(board, update) { return true; },
+    propagate: function(board, update) { return []; },
 };
 
 gridgame.Game = {
@@ -139,3 +139,44 @@ gridgame.Game = {
     },
 };
 
+gridgame.OneEachConstraint = gridgame.Constraint.extend({
+    create: function(idxs) {
+        var self = Object.create(this);
+        self.idxs = idxs;
+        return self;
+    },
+    check: function(board, update) {
+        return true;
+    },
+    propagate: function(board, update) {
+        var updates = [];
+        if (!this.idxs.include(update.idx)) {
+            return updates;
+        }
+        // 1. if any spot has only one value, then remove
+        // that value from all the other spots
+        if (board.possible_values[update.idx].length == 1) {
+            var value = board.possible_values[update.idx][0];
+            for (var ii = 0; ii < this.idxs.length; ii++) {
+                if (this.idxs[ii] == update.idx) {
+                    continue;
+                }
+                updates.push(gamegrid.update.create(this.idxs[ii], "remove", value));
+            } 
+        }
+        // 2. if there is only one possible place for a value to go
+        // that's where it must go.
+        for (var value = 1; value <= this.idxs.length; value++) {
+            var spots = [];
+            for (var ii = 0; ii < this.idxs.length; ii++) {
+                if (board.possible_values[this.idxs[ii]].includes(value)) {
+                    spots.push(this.idxs[ii]);
+                }
+            }
+            if (spots.length == 1) {
+                updates.push(gamegrid.update.create(spots[0], "set", value));
+            }
+        }
+        return updates;
+    },
+});
