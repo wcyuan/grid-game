@@ -246,13 +246,13 @@ gridgame.Game = {
                 had_changes.push(updates[ii]);
             }
         }
-        updates = [];
+        updates.splice(0);
         for (var ii = 0; ii < had_changes.length; ii++) {
             this.add_updates(updates, this.get_implied_updates(had_changes[ii], board));
         }
         return updates;
     },
-    generate_updates: function() {
+    generate_updates: function(board) {
         var updates = [];
         // If there are no pending updates, loop through all constraints and
         // see if there are any recommended updates that were missed before
@@ -272,7 +272,7 @@ gridgame.Game = {
             updates = this.updates;
         }
         if (updates.length == 0 && generate_updates) {
-            updates = this.generate_updates();
+            updates = this.generate_updates(board);
         }
         while (updates.length > 0) {
             updates = this.propagate_once(board, updates);
@@ -299,7 +299,7 @@ gridgame.Game = {
         }
         var solutions = [];
         for (var ii = 0; ii < board.possible_values.length; ii++) {
-            if (board.possible_values[ii] <= 1) {
+            if (board.possible_values[ii].length <= 1) {
                 continue;
             }
             for (var jj = 0; jj < board.possible_values[ii].length; jj++) {
