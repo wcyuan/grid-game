@@ -32,6 +32,13 @@ gridgame.range = function(min, max) {
     return retval;
 };
 
+gridgame.array_extend = function(arr1, arr2) {
+    for (var ii = 0; ii < arr2.length; ii++) {
+        arr1.push(arr2[ii]);
+    }
+    return arr1;
+};
+
 gridgame.array_equals = function(arr1, arr2) {
     if (arr1.length != arr2.length) {
         return false;
@@ -136,10 +143,7 @@ gridgame.Board = {
         var self = this;
         var board = gridgame.Board.create(self.rows, self.cols, self.func_valid_idx, self.func_possible_values);
         for (var ii = 0; ii < self.possible_values.length; ii++) {
-            board.possible_values[idx] = [];
-            for (var jj = 0; jj < self.possible_values[idx].length; jj++) {
-                board.possible_values[idx].push(self.possible_values[idx][jj]);
-            }
+            board.possible_values[ii] = gridgame.array_extend([], self.possible_values[ii]);
         }
         board.valid = self.valid;
         return board;
@@ -275,28 +279,52 @@ gridgame.Game = {
         }
         return board;
     },
-    solve_with_guessing: function(board) {
+    solve_with_guessing: function(board, num_solutions) {
         if (!board) {
             board = this.board;
         }
-        while(true) {
-            if (!board.valid) {
-                return false;
-            }
-            if (board.is_solved()) {
-                return true;
-            }
-            for (var ii = 0; ii < board.possible_values.length; ii++) {
-                if (board.possible_values[ii] <= 1) {
-                    continue;
-                }
-                var temp_board = board.copy();
-                // XXX fix this
-                this.set_value(row, col, value, temp_board);
-                this.solve_with_implications(temp_board);
-            }
+        console.log(board.as_string());
+        if (!board.valid) {
+            return []; 
         }
-        
+        if (board.is_solved()) {
+            return [board];
+        }
+        this.solve_with_implications(true, board);
+        if (!board.valid) {
+            return [];
+        }
+        if (board.is_solved()) {
+            return [board];
+        }
+        var solutions = [];
+        for (var ii = 0; ii < board.possible_values.length; ii++) {
+            if (board.possible_values[ii] <= 1) {
+                continue;
+            }
+            for (var jj = 0; jj < board.possible_values[ii].length; jj++) {
+                var value = board.possible_values[ii][jj];
+                var temp_board = board.copy();
+                var updates = [gridgame.Update.create(ii, "set", value)];
+                this.solve_with_implications(true, temp_board, updates);
+                if (!temp_board.valid) {
+                    continue;
+                } else if (temp_board.is_solved()) {
+                    solutions.push(temp_board);
+                } else {
+                    var remaining_solutions;
+                    if (num_solutions) {
+                        remaining_solutions = num_solutions - solutions.length;
+                    }
+                    gridgame.array_extend(solutions, this.solve_with_guessing(temp_board, remaining_solutions));
+                }
+                if (num_solutions && solutions.length >= num_solutions) {
+                    break;
+                }
+            }
+            break;
+        }
+        return solutions;
     },
 };
 
