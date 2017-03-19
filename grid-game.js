@@ -249,6 +249,16 @@ gridgame.Game = {
                     board.row_col_to_idx(row, col), "set", value));
     },
     init_with_string: function(string) {
+        // Maybe for readability we should skip over spaces
+        // e.g. currently spaces mean a blank in the board
+        // but maybe we should have them be ignored, so only
+        // things like "-" or "." indicate a blank in the board.
+        // That way you can input a string that uses spaces for
+        // formatting.
+        //
+        // We should probably verify that the string is the right
+        // length (or at least not too long) and that all the values
+        // are valid (>= 1 and (<= row or <= col))
         for (var ii = 0; ii < string.length; ii++) {
             var value = Math.round(string.charAt(ii));
             if (!isNaN(value)) {
@@ -539,6 +549,7 @@ gridgame.CapsulesGame = gridgame.Game.extend({
         for (var group = 0; group < groups.length; group++) {
             self.constraints.push(gridgame.OneEachConstraint.create(groups[group]));
         }
+        // we should also verify that all idxs are part of exactly one OneEachConstraint
         for (var row = 0; row < rows; row++) {
             for (var col = 0; col < cols; col++) {
                 self.constraints.push(gridgame.NoTouchingConstraint.create(self.board.row_col_to_idx(row, col)));
