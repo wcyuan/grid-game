@@ -3,15 +3,23 @@
 // As an example, try this:
 //
 // g = gridgame.SudokuGame.create().init_with_string("...........4..5....63..1.7..15..32.8..9.........6..4...4.....9.3.7.4...25..9..7..")
+// g.propagate_once()
+// g.board_as_string()
+//
+// This will print the initial board
+//
 // g.solve_with_implications()
 // g.board.as_string()
 //
-// That will show solutions that you can achieve with simple rules
+// That will show solutions that you can achieve with simple rules (just propagating updates)
 //
 // s = g.solve_with_guessing(null, 1)
 // s[0].as_string()
 //
 // This will show solutions from trial and error (which should always work)
+//
+// g = gridgame.CapsulesGame.create(7, 7, [[0, 7], [1, 2, 3, 4, 9], [5, 6, 11, 12, 18], [8, 14, 15, 16, 23], [10, 17, 24, 31, 38], [13, 20], [19, 25, 26, 27, 32], [21, 22, 28, 29, 35], [30, 36, 37, 42, 43], [33, 34, 40, 41, 48], [39, 44, 45, 46, 47]])
+// g.init_with_string("..4.5.41....3.......1..321..4.......5....33.4.3..")
 //
 
 Object.prototype.extend = function (extension) {
@@ -71,6 +79,8 @@ gridgame.Board = {
     create: function(rows, cols, func_valid_idx, func_possible_values) {
         var self = Object.create(this);
         self.valid = true;
+        if (!rows) { rows = 9; }
+        if (!cols) { cols = 9; }
         self.rows = rows;
         self.cols = cols;
         if (!func_possible_values) {
@@ -113,7 +123,7 @@ gridgame.Board = {
         for (var ii = 0; ii < values.length; ii++) {
             if (this.possible_values[idx].includes(values[ii])) {
                 this.possible_values[idx] = this.possible_values[idx].filter(
-                    function (val) { return !values.includes(val); });
+                        function (val) { return !values.includes(val); });
                 if (this.possible_values[idx].length == 0) {
                     this.valid = false;
                 }
@@ -200,10 +210,32 @@ gridgame.Constraint = {
     propagate: function(board, update) { return []; },
 };
 
+// The idea behind this class is that each game is a board with constraints, and each
+// time you change something on the board, you can run through all the 
+// constraints to see if that update generates other updates.
+//
+// For example, if you know the first spot in a sudoku is a "1", then you
+// can find all the contraints that the first spot belongs to (a row constraint,
+// a column constraint, and a square constraint), and from each of those, you can
+// remove "1" from all the other spots.  Removing "1" from those spots
+// might trigger another update, like maybe now one of those spots can only have
+// one possible value, so you should set that as its value.
+//
+// So the logic for figuring out new updates is all in the constraints, in
+// the "propagate" function.
+//
+// The nice thing about this is that you can code up new games of this form relatively
+// easily (Sudoku, KenKen, and Capsules all work).
+//
+// The downside is that you can only have logic that involves a single constraint.
+// You can't have logic that looks across multiple constraints at once.
 gridgame.Game = {
-    create: function(rows, cols, constraints, func_valid_idx) {
+    create: function(rows, cols, constraints, func_possible_values, func_valid_idx) {
         var self = Object.create(this);
-        self.board = gridgame.Board.create(rows, cols, func_valid_idx);
+        self.board = gridgame.Board.create(rows, cols, func_valid_idx, func_possible_values);
+        if (!constraints) {
+            constraints = [];
+        }
         self.constraints = constraints;
         self.updates = [];
         return self;
@@ -213,8 +245,18 @@ gridgame.Game = {
             board = this.board;
         }
         this.updates.push(
-            gridgame.Update.create(
-                board.row_col_to_idx(row, col), "set", value));
+                gridgame.Update.create(
+                    board.row_col_to_idx(row, col), "set", value));
+    },
+    init_with_string: function(string) {
+        for (var ii = 0; ii < string.length; ii++) {
+            var value = Math.round(string.charAt(ii));
+            if (!isNaN(value)) {
+                var row_col = this.board.idx_to_row_col(ii);
+                this.set_value(row_col[0], row_col[1], value);
+            }
+        }
+        return this;
     },
     apply_update: function(update, board) {
         if (!board) {
@@ -253,11 +295,11 @@ gridgame.Game = {
         if (!updates) {
             updates = this.updates;
         }
-        var had_changes = []
+        var had_changes = [];
         for (var ii = 0; ii < updates.length; ii++) {
             if (this.apply_update(updates[ii], board)) {
                 if (!board.valid) {
-                   return [];
+                    return [];
                 }
                 had_changes.push(updates[ii]);
             }
@@ -346,7 +388,7 @@ gridgame.Game = {
 
 gridgame.OneEachConstraint = gridgame.Constraint.extend({
     create: function(idxs) {
-        var self = Object.create(this);
+        var self = gridgame.Constraint.create.call(this);
         self.idxs = idxs;
         return self;
     },
@@ -361,6 +403,17 @@ gridgame.OneEachConstraint = gridgame.Constraint.extend({
         } else {
             idxs_to_check = this.idxs;
         }
+
+        // 0. All spots can only have the values 1 to idxs.length
+        for (var ii = 0; ii < this.idxs.length; ii++) {
+            for (var value = 0; value < board.possible_values[this.idxs[ii]].length; value++) {
+                var val = board.possible_values[this.idxs[ii]][value];
+                if (val < 1 || val > this.idxs.length) {
+                    updates.push(gridgame.Update.create(this.idxs[ii], "remove", val));
+                }
+            }
+        }
+
         // 1. if any spot has only one value, then remove
         // that value from all the other spots
         for (var ii = 0; ii < idxs_to_check.length; ii++) {
@@ -376,6 +429,7 @@ gridgame.OneEachConstraint = gridgame.Constraint.extend({
                 }
             }
         }
+
         // 2. if there is only one possible place for a value to go
         // that's where it must go.
         for (var value = 1; value <= this.idxs.length; value++) {
@@ -389,6 +443,15 @@ gridgame.OneEachConstraint = gridgame.Constraint.extend({
                 updates.push(gridgame.Update.create(spots[0], "set", value));
             }
         }
+
+        // 3. As a generalization of rule #2, if there are N places that each
+        // can hold the same N values, then those values must go in those places
+        // so you can remove them from all other places in this constraint.
+        // For example, if the first two places in a row each must contain 3 and 5,
+        // then, even though you don't know where the 3 goes or where the 5 goes,
+        // you know that they must go in the first two places, you so can remove
+        // them from all the other places.
+        // Unimplemented.
         return updates;
     },
 });
@@ -397,7 +460,7 @@ gridgame.SudokuGame = gridgame.Game.extend({
     create: function(rows, cols) {
         if (!rows) { rows = 9; }
         if (!cols) { cols = 9; }
-        var self = gridgame.Game.create.call(this, rows, cols, []);
+        var self = gridgame.Game.create.call(this, rows, cols);
         // each row
         for (var row = 0; row < rows; row++) {
             var idxs = [];
@@ -431,15 +494,56 @@ gridgame.SudokuGame = gridgame.Game.extend({
         self.updates = [];
         return self;
     },
-    init_with_string: function(string) {
-        for (var ii = 0; ii < string.length; ii++) {
-            var value = Math.round(string.charAt(ii));
-            if (!isNaN(value)) {
-                var row_col = this.board.idx_to_row_col(ii);
-                this.set_value(row_col[0], row_col[1], value);
+});
+
+gridgame.NoTouchingConstraint = gridgame.Constraint.extend({
+    create: function(center_idx) {
+        var self = gridgame.Constraint.create.call(this);
+        self.center_idx = center_idx;
+        return self;
+    },
+    propagate: function(board, update) {
+        var updates = [];
+        var row_col = board.idx_to_row_col(this.center_idx);
+        var row = row_col[0];
+        var col = row_col[1];
+        if (update) {
+            var update_row_col = board.idx_to_row_col(update.idx);
+            if (update_row_col[0] != row || update_row_col[0] != col) {
+                return updates;
             }
         }
-        return this;
+        if (board.possible_values[this.center_idx].length != 1) {
+            return updates;
+        }
+        var value = board.possible_values[this.center_idx][0];
+        for (var rr = Math.max(0, row-1); rr < Math.min(board.rows, row+1); rr++) {
+            for (var cc = Math.max(0, col-1); cc < Math.min(board.cols, col+1); cc++) {
+                if (rr == row && cc == col) {
+                    continue;
+                }
+                var possibles = board.get_by_row_col(rr, cc);
+                if (possibles.includes(value)) {
+                    updates.push(gridgame.Update.create(board.row_col_to_idx(rr, cc), "remove", value));
+                }
+            }
+        }
+        return updates;
+    },
+});
+
+gridgame.CapsulesGame = gridgame.Game.extend({
+    create: function(rows, cols, groups) {
+        var self = gridgame.Game.create.call(this, rows, cols);
+        for (var group = 0; group < groups.length; group++) {
+            self.constraints.push(gridgame.OneEachConstraint.create(groups[group]));
+        }
+        for (var row = 0; row < rows; row++) {
+            for (var col = 0; col < cols; col++) {
+                self.constraints.push(gridgame.NoTouchingConstraint.create(self.board.row_col_to_idx(row, col)));
+            }
+        }
+        return self;
     },
 });
 
