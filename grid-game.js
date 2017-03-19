@@ -1,5 +1,11 @@
 //
 // This works, but isn't very user friendly yet
+// Eventually, we should add a way to create the board from a website
+// that means not only entering the initial values, but entering the
+// type of game (Sudoku, KenKen, Capsules), and an easy way to create
+// the constraints (for KenKen and Capsules, since those constraints
+// are different for each instance of the game)
+//
 // As an example, try this:
 //
 // g = gridgame.SudokuGame.create().init_with_string("...........4..5....63..1.7..15..32.8..9.........6..4...4.....9.3.7.4...25..9..7..")
