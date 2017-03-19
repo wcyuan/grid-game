@@ -509,7 +509,7 @@ gridgame.NoTouchingConstraint = gridgame.Constraint.extend({
         var col = row_col[1];
         if (update) {
             var update_row_col = board.idx_to_row_col(update.idx);
-            if (update_row_col[0] != row || update_row_col[0] != col) {
+            if (update_row_col[0] != row || update_row_col[1] != col) {
                 return updates;
             }
         }
@@ -517,12 +517,13 @@ gridgame.NoTouchingConstraint = gridgame.Constraint.extend({
             return updates;
         }
         var value = board.possible_values[this.center_idx][0];
-        for (var rr = Math.max(0, row-1); rr < Math.min(board.rows, row+1); rr++) {
-            for (var cc = Math.max(0, col-1); cc < Math.min(board.cols, col+1); cc++) {
+        for (var rr = Math.max(0, row-1); rr < Math.min(board.rows, row+2); rr++) {
+            for (var cc = Math.max(0, col-1); cc < Math.min(board.cols, col+2); cc++) {
                 if (rr == row && cc == col) {
                     continue;
                 }
                 var possibles = board.get_by_row_col(rr, cc);
+                //console.log("row: " + rr + ", col: " + cc + ", possibles = " + possibles);
                 if (possibles.includes(value)) {
                     updates.push(gridgame.Update.create(board.row_col_to_idx(rr, cc), "remove", value));
                 }
